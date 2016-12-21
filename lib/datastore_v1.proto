@@ -1,597 +1,911 @@
-// Copyright 2013 Google Inc. All Rights Reserved.
+// `Struct` represents a structured data value, consisting of fields
+// which map to dynamically typed values. In some languages, `Struct`
+// might be supported by a native representation. For example, in
+// scripting languages like JS a struct is represented as an
+// object. The details of that representation are described together
+// with the proto support for the language.
 //
-// The datastore v1 service proto definitions
+// The JSON representation for `Struct` is JSON object.
+message Struct {
+  // Unordered map of dynamically typed values.
+  map<string, Value> fields = 1;
+}
 
-// Had to remove the following line to get exprotobuf to parse this file
-// syntax = "proto2";
+// `Value` represents a dynamically typed value which can be either
+// null, a number, a string, a boolean, a recursive struct value, or a
+// list of values. A producer of value is expected to set one of that
+// variants, absence of any variant indicates an error.
+//
+// The JSON representation for `Value` is JSON value.
+message Value {
+  // The kind of value.
+  oneof kind {
+    // Represents a null value.
+    NullValue null_value = 1;
+    // Represents a double value.
+    double number_value = 2;
+    // Represents a string value.
+    string string_value = 3;
+    // Represents a boolean value.
+    bool bool_value = 4;
+    // Represents a structured value.
+    Struct struct_value = 5;
+    // Represents a repeated `Value`.
+    ListValue list_value = 6;
+  }
+}
 
-package pb;
-option java_package = "com.google.api.services.datastore";
+// `NullValue` is a singleton enumeration to represent the null value for the
+// `Value` type union.
+//
+//  The JSON representation for `NullValue` is JSON `null`.
+enum NullValue {
+  // Null value.
+  NULL_VALUE = 0;
+}
 
+// `ListValue` is a wrapper around a repeated field of values.
+//
+// The JSON representation for `ListValue` is JSON array.
+message ListValue {
+  // Repeated field of dynamically typed values.
+  repeated Value values = 1;
+}
 
-// An identifier for a particular subset of entities.
+// A Timestamp represents a point in time independent of any time zone
+// or calendar, represented as seconds and fractions of seconds at
+// nanosecond resolution in UTC Epoch time. It is encoded using the
+// Proleptic Gregorian Calendar which extends the Gregorian calendar
+// backwards to year one. It is encoded assuming all minutes are 60
+// seconds long, i.e. leap seconds are "smeared" so that no leap second
+// table is needed for interpretation. Range is from
+// 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z.
+// By restricting to that range, we ensure that we can convert to
+// and from  RFC 3339 date strings.
+// See [https://www.ietf.org/rfc/rfc3339.txt](https://www.ietf.org/rfc/rfc3339.txt).
 //
-// Entities are partitioned into various subsets, each used by different
-// datasets and different namespaces within a dataset and so forth.
+// Example 1: Compute Timestamp from POSIX `time()`.
 //
-// All input partition IDs are normalized before use.
-// A partition ID is normalized as follows:
-//   If the partition ID is unset or is set to an empty partition ID, replace it
-//       with the context partition ID.
-//   Otherwise, if the partition ID has no dataset ID, assign it the context
-//       partition ID's dataset ID.
-// Unless otherwise documented, the context partition ID has the dataset ID set
-// to the context dataset ID and no other partition dimension set.
+//     Timestamp timestamp;
+//     timestamp.set_seconds(time(NULL));
+//     timestamp.set_nanos(0);
 //
-// A partition ID is empty if all of its fields are unset.
+// Example 2: Compute Timestamp from POSIX `gettimeofday()`.
 //
-// Partition dimension:
-// A dimension may be unset.
-// A dimension's value must never be "".
-// A dimension's value must match [A-Za-z\d\.\-_]{1,100}
-// If the value of any dimension matches regex "__.*__",
-// the partition is reserved/read-only.
-// A reserved/read-only partition ID is forbidden in certain documented contexts.
+//     struct timeval tv;
+//     gettimeofday(&tv, NULL);
 //
-// Dataset ID:
-// A dataset id's value must never be "".
-// A dataset id's value must match
-// ([a-z\d\-]{1,100}~)?([a-z\d][a-z\d\-\.]{0,99}:)?([a-z\d][a-z\d\-]{0,99}
+//     Timestamp timestamp;
+//     timestamp.set_seconds(tv.tv_sec);
+//     timestamp.set_nanos(tv.tv_usec * 1000);
+//
+// Example 3: Compute Timestamp from Win32 `GetSystemTimeAsFileTime()`.
+//
+//     FILETIME ft;
+//     GetSystemTimeAsFileTime(&ft);
+//     UINT64 ticks = (((UINT64)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+//
+//     // A Windows tick is 100 nanoseconds. Windows epoch 1601-01-01T00:00:00Z
+//     // is 11644473600 seconds before Unix epoch 1970-01-01T00:00:00Z.
+//     Timestamp timestamp;
+//     timestamp.set_seconds((INT64) ((ticks / 10000000) - 11644473600LL));
+//     timestamp.set_nanos((INT32) ((ticks % 10000000) * 100));
+//
+// Example 4: Compute Timestamp from Java `System.currentTimeMillis()`.
+//
+//     long millis = System.currentTimeMillis();
+//
+//     Timestamp timestamp = Timestamp.newBuilder().setSeconds(millis / 1000)
+//         .setNanos((int) ((millis % 1000) * 1000000)).build();
+//
+//
+// Example 5: Compute Timestamp from current time in Python.
+//
+//     timestamp = Timestamp()
+//     timestamp.GetCurrentTime()
+//
+//
+message Timestamp {
+
+  // Represents seconds of UTC time since Unix epoch
+  // 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
+  // 9999-12-31T23:59:59Z inclusive.
+  int64 seconds = 1;
+
+  // Non-negative fractions of a second at nanosecond resolution. Negative
+  // second values with fractions must still have non-negative nanos values
+  // that count forward in time. Must be from 0 to 999,999,999
+  // inclusive.
+  int32 nanos = 2;
+}
+
+// An object representing a latitude/longitude pair. This is expressed as a pair
+// of doubles representing degrees latitude and degrees longitude. Unless
+// specified otherwise, this must conform to the
+// <a href="http://www.unoosa.org/pdf/icg/2012/template/WGS_84.pdf">WGS84
+// standard</a>. Values must be within normalized ranges.
+//
+// Example of normalization code in Python:
+//
+//     def NormalizeLongitude(longitude):
+//       """Wraps decimal degrees longitude to [-180.0, 180.0]."""
+//       q, r = divmod(longitude, 360.0)
+//       if r > 180.0 or (r == 180.0 and q <= -1.0):
+//         return r - 360.0
+//       return r
+//
+//     def NormalizeLatLng(latitude, longitude):
+//       """Wraps decimal degrees latitude and longitude to
+//       [-90.0, 90.0] and [-180.0, 180.0], respectively."""
+//       r = latitude % 360.0
+//       if r <= 90.0:
+//         return r, NormalizeLongitude(longitude)
+//       elif r >= 270.0:
+//         return r - 360, NormalizeLongitude(longitude)
+//       else:
+//         return 180 - r, NormalizeLongitude(longitude + 180.0)
+//
+//     assert 180.0 == NormalizeLongitude(180.0)
+//     assert -180.0 == NormalizeLongitude(-180.0)
+//     assert -179.0 == NormalizeLongitude(181.0)
+//     assert (0.0, 0.0) == NormalizeLatLng(360.0, 0.0)
+//     assert (0.0, 0.0) == NormalizeLatLng(-360.0, 0.0)
+//     assert (85.0, 180.0) == NormalizeLatLng(95.0, 0.0)
+//     assert (-85.0, -170.0) == NormalizeLatLng(-95.0, 10.0)
+//     assert (90.0, 10.0) == NormalizeLatLng(90.0, 10.0)
+//     assert (-90.0, -10.0) == NormalizeLatLng(-90.0, -10.0)
+//     assert (0.0, -170.0) == NormalizeLatLng(-180.0, 10.0)
+//     assert (0.0, -170.0) == NormalizeLatLng(180.0, 10.0)
+//     assert (-90.0, 10.0) == NormalizeLatLng(270.0, 10.0)
+//     assert (90.0, 10.0) == NormalizeLatLng(-270.0, 10.0)
+message LatLng {
+  // The latitude in degrees. It must be in the range [-90.0, +90.0].
+  double latitude = 1;
+
+  // The longitude in degrees. It must be in the range [-180.0, +180.0].
+  double longitude = 2;
+}
+
+// A partition ID identifies a grouping of entities. The grouping is always
+// by project and namespace, however the namespace ID may be empty.
+//
+// A partition ID contains several dimensions:
+// project ID and namespace ID.
+//
+// Partition dimensions:
+//
+// - May be `""`.
+// - Must be valid UTF-8 bytes.
+// - Must have values that match regex `[A-Za-z\d\.\-_]{1,100}`
+// If the value of any dimension matches regex `__.*__`, the partition is
+// reserved/read-only.
+// A reserved/read-only partition ID is forbidden in certain documented
+// contexts.
+//
+// Foreign partition IDs (in which the project ID does
+// not match the context project ID ) are discouraged.
+// Reads and writes of foreign partition IDs may fail if the project is not in an active state.
 message PartitionId {
-  // The dataset ID.
-  optional string dataset_id = 3;
-  // The namespace.
-  optional string namespace = 4;
+  // The ID of the project to which the entities belong.
+  string project_id = 2;
+
+  // If not empty, the ID of the namespace to which the entities belong.
+  string namespace_id = 4;
 }
 
 // A unique identifier for an entity.
-// If a key's partition id or any of its path kinds or names are
+// If a key's partition ID or any of its path kinds or names are
 // reserved/read-only, the key is reserved/read-only.
 // A reserved/read-only key is forbidden in certain documented contexts.
 message Key {
-  // Entities are partitioned into subsets, currently identified by a dataset
-  // (usually implicitly specified by the project) and namespace ID.
-  // Queries are scoped to a single partition.
-  optional PartitionId partition_id = 1;
-
   // A (kind, ID/name) pair used to construct a key path.
   //
-  // At most one of name or ID may be set.
-  // If either is set, the element is complete.
+  // If either name or ID is set, the element is complete.
   // If neither is set, the element is incomplete.
   message PathElement {
     // The kind of the entity.
-    // A kind matching regex "__.*__" is reserved/read-only.
-    // A kind must not contain more than 500 characters.
-    // Cannot be "".
-    required string kind = 1;
-    // The ID of the entity.
-    // Never equal to zero. Values less than zero are discouraged and will not
-    // be supported in the future.
-    optional int64 id = 2;
-    // The name of the entity.
-    // A name matching regex "__.*__" is reserved/read-only.
-    // A name must not be more than 500 characters.
-    // Cannot be "".
-    optional string name = 3;
+    // A kind matching regex `__.*__` is reserved/read-only.
+    // A kind must not contain more than 1500 bytes when UTF-8 encoded.
+    // Cannot be `""`.
+    string kind = 1;
+
+    // The type of ID.
+    oneof id_type {
+      // The auto-allocated ID of the entity.
+      // Never equal to zero. Values less than zero are discouraged and may not
+      // be supported in the future.
+      int64 id = 2;
+
+      // The name of the entity.
+      // A name matching regex `__.*__` is reserved/read-only.
+      // A name must not be more than 1500 bytes when UTF-8 encoded.
+      // Cannot be `""`.
+      string name = 3;
+    }
   }
+
+  // Entities are partitioned into subsets, currently identified by a project
+  // ID and namespace ID.
+  // Queries are scoped to a single partition.
+  PartitionId partition_id = 1;
 
   // The entity path.
   // An entity path consists of one or more elements composed of a kind and a
   // string or numerical identifier, which identify entities. The first
-  // element identifies a <em>root entity</em>, the second element identifies
-  // a <em>child</em> of the root entity, the third element a child of the
+  // element identifies a _root entity_, the second element identifies
+  // a _child_ of the root entity, the third element identifies a child of the
   // second entity, and so forth. The entities identified by all prefixes of
-  // the path are called the element's <em>ancestors</em>.
-  // An entity path is always fully complete: ALL of the entity's ancestors
+  // the path are called the element's _ancestors_.
+  //
+  // An entity path is always fully complete: *all* of the entity's ancestors
   // are required to be in the path along with the entity identifier itself.
   // The only exception is that in some documented cases, the identifier in the
-  // last path element (for the entity) itself may be omitted. A path can never
-  // be empty.
-  repeated PathElement path_element = 2;
+  // last path element (for the entity) itself may be omitted. For example,
+  // the last path element of the key of `Mutation.insert` may have no
+  // identifier.
+  //
+  // A path can never be empty, and a path can have at most 100 elements.
+  repeated PathElement path = 2;
+}
+
+// An array value.
+message ArrayValue {
+  // Values in the array.
+  // The order of this array may not be preserved if it contains a mix of
+  // indexed and unindexed values.
+  repeated Value values = 1;
 }
 
 // A message that can hold any of the supported value types and associated
 // metadata.
-//
-// At most one of the <type>Value fields may be set.
-// If none are set the value is "null".
-//
 message Value {
-  // A boolean value.
-  optional bool boolean_value = 1;
-  // An integer value.
-  optional int64 integer_value = 2;
-  // A double value.
-  optional double double_value = 3;
-  // A timestamp value.
-  optional int64 timestamp_microseconds_value = 4;
-  // A key value.
-  optional Key key_value  = 5;
-  // A blob key value.
-  optional string blob_key_value = 16;
-  // A UTF-8 encoded string value.
-  optional string string_value = 17;
-  // A blob value.
-  optional bytes blob_value = 18;
-  // An entity value.
-  // May have no key.
-  // May have a key with an incomplete key path.
-  // May have a reserved/read-only key.
-  optional Entity entity_value = 6;
-  // A list value.
-  // Cannot contain another list value.
-  // Cannot also have a meaning and indexing set.
-  repeated Value list_value = 7;
+  // Must have a value set.
+  oneof value_type {
+    // A null value.
+    google.protobuf.NullValue null_value = 11;
 
-  // The <code>meaning</code> field is reserved and should not be used.
-  optional int32 meaning = 14;
+    // A boolean value.
+    bool boolean_value = 1;
 
-  // If the value should be indexed.
-  //
-  // The <code>indexed</code> property may be set for a
-  // <code>null</code> value.
-  // When <code>indexed</code> is <code>true</code>, <code>stringValue</code>
-  // is limited to 500 characters and the blob value is limited to 500 bytes.
-  // Exception: If meaning is set to 2, string_value is limited to 2038
-  // characters regardless of indexed.
-  // When indexed is true, meaning 15 and 22 are not allowed, and meaning 16
-  // will be ignored on input (and will never be set on output).
-  // Input values by default have <code>indexed</code> set to
-  // <code>true</code>; however, you can explicitly set <code>indexed</code> to
-  // <code>true</code> if you want. (An output value never has
-  // <code>indexed</code> explicitly set to <code>true</code>.) If a value is
-  // itself an entity, it cannot have <code>indexed</code> set to
-  // <code>true</code>.
-  // Exception: An entity value with meaning 9, 20 or 21 may be indexed.
-  optional bool indexed = 15 [default = true];
+    // An integer value.
+    int64 integer_value = 2;
+
+    // A double value.
+    double double_value = 3;
+
+    // A timestamp value.
+    // When stored in the Datastore, precise only to microseconds;
+    // any additional precision is rounded down.
+    google.protobuf.Timestamp timestamp_value = 10;
+
+    // A key value.
+    Key key_value = 5;
+
+    // A UTF-8 encoded string value.
+    // When `exclude_from_indexes` is false (it is indexed) , may have at most 1500 bytes.
+    // Otherwise, may be set to at least 1,000,000 bytes.
+    string string_value = 17;
+
+    // A blob value.
+    // May have at most 1,000,000 bytes.
+    // When `exclude_from_indexes` is false, may have at most 1500 bytes.
+    // In JSON requests, must be base64-encoded.
+    bytes blob_value = 18;
+
+    // A geo point value representing a point on the surface of Earth.
+    google.type.LatLng geo_point_value = 8;
+
+    // An entity value.
+    //
+    // - May have no key.
+    // - May have a key with an incomplete key path.
+    // - May have a reserved/read-only key.
+    Entity entity_value = 6;
+
+    // An array value.
+    // Cannot contain another array value.
+    // A `Value` instance that sets field `array_value` must not set fields
+    // `meaning` or `exclude_from_indexes`.
+    ArrayValue array_value = 9;
+  }
+
+  // The `meaning` field should only be populated for backwards compatibility.
+  int32 meaning = 14;
+
+  // If the value should be excluded from all indexes including those defined
+  // explicitly.
+  bool exclude_from_indexes = 19;
 }
 
-// An entity property.
-message Property {
-  // The name of the property.
-  // A property name matching regex "__.*__" is reserved.
-  // A reserved property name is forbidden in certain documented contexts.
-  // The name must not contain more than 500 characters.
-  // Cannot be "".
-  required string name = 1;
-
-  // The value(s) of the property.
-  // Each value can have only one value property populated. For example,
-  // you cannot have a values list of <code>{ value: { integerValue: 22,
-  // stringValue: "a" } }</code>, but you can have <code>{ value: { listValue:
-  // [ { integerValue: 22 }, { stringValue: "a" } ] }</code>.
-  required Value value = 4;
-}
-
-// An entity.
+// A Datastore data object.
 //
-// An entity is limited to 1 megabyte when stored. That <em>roughly</em>
+// An entity is limited to 1 megabyte when stored. That _roughly_
 // corresponds to a limit of 1 megabyte for the serialized form of this
 // message.
 message Entity {
   // The entity's key.
   //
   // An entity must have a key, unless otherwise documented (for example,
-  // an entity in <code>Value.entityValue</code> may have no key).
-  // An entity's kind is its key's path's last element's kind,
+  // an entity in `Value.entity_value` may have no key).
+  // An entity's kind is its key path's last element's kind,
   // or null if it has no key.
-  optional Key key = 1;
+  Key key = 1;
+
   // The entity's properties.
-  // Each property's name must be unique for its entity.
-  repeated Property property = 2;
+  // The map's keys are property names.
+  // A property name matching regex `__.*__` is reserved.
+  // A reserved property name is forbidden in certain documented contexts.
+  // The name must not contain more than 500 characters.
+  // The name cannot be `""`.
+  map<string, Value> properties = 3;
 }
 
-// The result of fetching an entity from the datastore.
+// The result of fetching an entity from Datastore.
 message EntityResult {
   // Specifies what data the 'entity' field contains.
-  // A ResultType is either implied (for example, in LookupResponse.found it
-  // is always FULL) or specified by context (for example, in message
-  // QueryResultBatch, field 'entity_result_type' specifies a ResultType
-  // for all the values in field 'entity_result').
+  // A `ResultType` is either implied (for example, in `LookupResponse.missing`
+  // from `datastore.proto`, it is always `KEY_ONLY`) or specified by context
+  // (for example, in message `QueryResultBatch`, field `entity_result_type`
+  // specifies a `ResultType` for all the values in field `entity_results`).
   enum ResultType {
-    FULL = 1;  // The entire entity.
-    PROJECTION = 2;  // A projected subset of properties.
-                     // The entity may have no key.
-                     // A property value may have meaning 18.
-    KEY_ONLY = 3;  // Only the key.
+    // Unspecified. This value is never used.
+    RESULT_TYPE_UNSPECIFIED = 0;
+
+    // The key and properties.
+    FULL = 1;
+
+    // A projected subset of properties. The entity may have no key.
+    PROJECTION = 2;
+
+    // Only the key.
+    KEY_ONLY = 3;
   }
 
   // The resulting entity.
-  required Entity entity = 1;
+  Entity entity = 1;
+
+  // The version of the entity, a strictly positive number that monotonically
+  // increases with changes to the entity.
+  //
+  // This field is set for [`FULL`][google.datastore.v1.EntityResult.ResultType.FULL] entity
+  // results.
+  //
+  // For [missing][google.datastore.v1.LookupResponse.missing] entities in `LookupResponse`, this
+  // is the version of the snapshot that was used to look up the entity, and it
+  // is always set except for eventually consistent reads.
+  int64 version = 4;
+
+  // A cursor that points to the position after the result entity.
+  // Set only when the `EntityResult` is part of a `QueryResultBatch` message.
+  bytes cursor = 3;
 }
 
-// A query.
+// A query for entities.
 message Query {
-  // The projection to return. If not set the entire entity is returned.
-  repeated PropertyExpression projection = 2;
+  // The projection to return. Defaults to returning all properties.
+  repeated Projection projection = 2;
 
-  // The kinds to query (if empty, returns entities from all kinds).
+  // The kinds to query (if empty, returns entities of all kinds).
+  // Currently at most 1 kind may be specified.
   repeated KindExpression kind = 3;
 
-  // The filter to apply (optional).
-  optional Filter filter = 4;
+  // The filter to apply.
+  Filter filter = 4;
 
   // The order to apply to the query results (if empty, order is unspecified).
   repeated PropertyOrder order = 5;
 
-  // The properties to group by (if empty, no grouping is applied to the
-  // result set).
-  repeated PropertyReference group_by = 6;
+  // The properties to make distinct. The query results will contain the first
+  // result for each distinct combination of values for the given properties
+  // (if empty, all results are returned).
+  repeated PropertyReference distinct_on = 6;
 
-  // A starting point for the query results. Optional. Query cursors are
-  // returned in query result batches.
-  optional bytes /* serialized QueryCursor */ start_cursor = 7;
+  // A starting point for the query results. Query cursors are
+  // returned in query result batches and
+  // [can only be used to continue the same query](https://cloud.google.com/datastore/docs/concepts/queries#cursors_limits_and_offsets).
+  bytes start_cursor = 7;
 
-  // An ending point for the query results. Optional. Query cursors are
-  // returned in query result batches.
-  optional bytes /* serialized QueryCursor */ end_cursor = 8;
+  // An ending point for the query results. Query cursors are
+  // returned in query result batches and
+  // [can only be used to limit the same query](https://cloud.google.com/datastore/docs/concepts/queries#cursors_limits_and_offsets).
+  bytes end_cursor = 8;
 
   // The number of results to skip. Applies before limit, but after all other
-  // constraints (optional, defaults to 0).
-  optional int32 offset = 10 [default=0];
+  // constraints. Optional. Must be >= 0 if specified.
+  int32 offset = 10;
 
   // The maximum number of results to return. Applies after all other
   // constraints. Optional.
-  optional int32 limit = 11;
+  // Unspecified is interpreted as no limit.
+  // Must be >= 0 if specified.
+  google.protobuf.Int32Value limit = 12;
 }
 
 // A representation of a kind.
 message KindExpression {
   // The name of the kind.
-  required string name = 1;
+  string name = 1;
 }
 
 // A reference to a property relative to the kind expressions.
-// exactly.
 message PropertyReference {
   // The name of the property.
-  required string name = 2;
+  // If name includes "."s, it may be interpreted as a property name path.
+  string name = 2;
 }
 
 // A representation of a property in a projection.
-message PropertyExpression {
-  enum AggregationFunction {
-    FIRST = 1;
-  }
+message Projection {
   // The property to project.
-  required PropertyReference property = 1;
-  // The aggregation function to apply to the property. Optional.
-  // Can only be used when grouping by at least one property. Must
-  // then be set on all properties in the projection that are not
-  // being grouped by.
-  optional AggregationFunction aggregation_function = 2;
+  PropertyReference property = 1;
 }
 
 // The desired order for a specific property.
 message PropertyOrder {
+  // The sort direction.
   enum Direction {
+    // Unspecified. This value must not be used.
+    DIRECTION_UNSPECIFIED = 0;
+
+    // Ascending.
     ASCENDING = 1;
+
+    // Descending.
     DESCENDING = 2;
   }
+
   // The property to order by.
-  required PropertyReference property = 1;
-  // The direction to order by.
-  optional Direction direction = 2 [default=ASCENDING];
+  PropertyReference property = 1;
+
+  // The direction to order by. Defaults to `ASCENDING`.
+  Direction direction = 2;
 }
 
-// A holder for any type of filter. Exactly one field should be specified.
+// A holder for any type of filter.
 message Filter {
-  // A composite filter.
-  optional CompositeFilter composite_filter = 1;
-  // A filter on a property.
-  optional PropertyFilter property_filter = 2;
+  // The type of filter.
+  oneof filter_type {
+    // A composite filter.
+    CompositeFilter composite_filter = 1;
+
+    // A filter on a property.
+    PropertyFilter property_filter = 2;
+  }
 }
 
-// A filter that merges the multiple other filters using the given operation.
+// A filter that merges multiple other filters using the given operator.
 message CompositeFilter {
+  // A composite filter operator.
   enum Operator {
+    // Unspecified. This value must not be used.
+    OPERATOR_UNSPECIFIED = 0;
+
+    // The results are required to satisfy each of the combined filters.
     AND = 1;
   }
 
   // The operator for combining multiple filters.
-  required Operator operator = 1;
+  Operator op = 1;
+
   // The list of filters to combine.
   // Must contain at least one filter.
-  repeated Filter filter = 2;
+  repeated Filter filters = 2;
 }
 
 // A filter on a specific property.
 message PropertyFilter {
+  // A property filter operator.
   enum Operator {
+    // Unspecified. This value must not be used.
+    OPERATOR_UNSPECIFIED = 0;
+
+    // Less than.
     LESS_THAN = 1;
+
+    // Less than or equal.
     LESS_THAN_OR_EQUAL = 2;
+
+    // Greater than.
     GREATER_THAN = 3;
+
+    // Greater than or equal.
     GREATER_THAN_OR_EQUAL = 4;
+
+    // Equal.
     EQUAL = 5;
 
+    // Has ancestor.
     HAS_ANCESTOR = 11;
   }
 
   // The property to filter by.
-  required PropertyReference property = 1;
+  PropertyReference property = 1;
+
   // The operator to filter by.
-  required Operator operator = 2;
+  Operator op = 2;
+
   // The value to compare the property to.
-  required Value value = 3;
+  Value value = 3;
 }
 
-// A GQL query.
+// A [GQL query](https://cloud.google.com/datastore/docs/apis/gql/gql_reference).
 message GqlQuery {
-  required string query_string = 1;
-  // When false, the query string must not contain a literal.
-  optional bool allow_literal = 2 [default = false];
-  // A named argument must set field GqlQueryArg.name.
-  // No two named arguments may have the same name.
-  // For each non-reserved named binding site in the query string,
-  // there must be a named argument with that name,
-  // but not necessarily the inverse.
-  repeated GqlQueryArg name_arg = 3;
-  // Numbered binding site @1 references the first numbered argument,
+  // A string of the format described
+  // [here](https://cloud.google.com/datastore/docs/apis/gql/gql_reference).
+  string query_string = 1;
+
+  // When false, the query string must not contain any literals and instead must
+  // bind all values. For example,
+  // `SELECT * FROM Kind WHERE a = 'string literal'` is not allowed, while
+  // `SELECT * FROM Kind WHERE a = @value` is.
+  bool allow_literals = 2;
+
+  // For each non-reserved named binding site in the query string, there must be
+  // a named parameter with that name, but not necessarily the inverse.
+  //
+  // Key must match regex `[A-Za-z_$][A-Za-z_$0-9]*`, must not match regex
+  // `__.*__`, and must not be `""`.
+  map<string, GqlQueryParameter> named_bindings = 5;
+
+  // Numbered binding site @1 references the first numbered parameter,
   // effectively using 1-based indexing, rather than the usual 0.
-  // A numbered argument must NOT set field GqlQueryArg.name.
-  // For each binding site numbered i in query_string,
-  // there must be an ith numbered argument.
-  // The inverse must also be true.
-  repeated GqlQueryArg number_arg = 4;
+  //
+  // For each binding site numbered i in `query_string`, there must be an i-th
+  // numbered parameter. The inverse must also be true.
+  repeated GqlQueryParameter positional_bindings = 4;
 }
 
-// A binding argument for a GQL query.
-// Exactly one of fields value and cursor must be set.
-message GqlQueryArg {
-  // Must match regex "[A-Za-z_$][A-Za-z_$0-9]*".
-  // Must not match regex "__.*__".
-  // Must not be "".
-  optional string name = 1;
-  optional Value value = 2;
-  optional bytes cursor = 3;
+// A binding parameter for a GQL query.
+message GqlQueryParameter {
+  // The type of parameter.
+  oneof parameter_type {
+    // A value parameter.
+    Value value = 2;
+
+    // A query cursor. Query cursors are returned in query
+    // result batches.
+    bytes cursor = 3;
+  }
 }
 
 // A batch of results produced by a query.
 message QueryResultBatch {
-  // The possible values for the 'more_results' field.
+  // The possible values for the `more_results` field.
   enum MoreResultsType {
-    NOT_FINISHED = 1;  // There are additional batches to fetch from this query.
-    MORE_RESULTS_AFTER_LIMIT = 2;  // The query is finished, but there are more
-                                   // results after the limit.
-    NO_MORE_RESULTS = 3;  // The query has been exhausted.
+    // Unspecified. This value is never used.
+    MORE_RESULTS_TYPE_UNSPECIFIED = 0;
+
+    // There may be additional batches to fetch from this query.
+    NOT_FINISHED = 1;
+
+    // The query is finished, but there may be more results after the limit.
+    MORE_RESULTS_AFTER_LIMIT = 2;
+
+    // The query is finished, but there may be more results after the end
+    // cursor.
+    MORE_RESULTS_AFTER_CURSOR = 4;
+
+    // The query has been exhausted.
+    NO_MORE_RESULTS = 3;
   }
 
-  // The result type for every entity in entityResults.
-  required EntityResult.ResultType entity_result_type = 1;
+  // The number of results skipped, typically because of an offset.
+  int32 skipped_results = 6;
+
+  // A cursor that points to the position after the last skipped result.
+  // Will be set when `skipped_results` != 0.
+  bytes skipped_cursor = 3;
+
+  // The result type for every entity in `entity_results`.
+  EntityResult.ResultType entity_result_type = 1;
+
   // The results for this batch.
-  repeated EntityResult entity_result = 2;
+  repeated EntityResult entity_results = 2;
 
   // A cursor that points to the position after the last result in the batch.
-  // May be absent.
-  optional bytes /* serialized QueryCursor */ end_cursor = 4;
+  bytes end_cursor = 4;
 
   // The state of the query after the current batch.
-  required MoreResultsType more_results = 5;
+  MoreResultsType more_results = 5;
 
-  // The number of results skipped because of <code>Query.offset</code>.
-  optional int32 skipped_results = 6;
+  // The version number of the snapshot this batch was returned from.
+  // This applies to the range of results from the query's `start_cursor` (or
+  // the beginning of the query if no cursor was given) to this batch's
+  // `end_cursor` (not the query's `end_cursor`).
+  //
+  // In a single transaction, subsequent query result batches for the same query
+  // can have a greater snapshot version number. Each batch's snapshot version
+  // is valid for all preceding batches.
+  // The value will be zero for eventually consistent queries.
+  int64 snapshot_version = 7;
 }
 
-// A set of changes to apply.
+// Each RPC normalizes the partition IDs of the keys in its input entities,
+// and always returns entities with keys with normalized partition IDs.
+// This applies to all keys and entities, including those in values, except keys
+// with both an empty path and an empty or unset partition ID. Normalization of
+// input keys sets the project ID (if not already set) to the project ID from
+// the request.
 //
-// No entity in this message may have a reserved property name,
-// not even a property in an entity in a value.
-// No value in this message may have meaning 18,
-// not even a value in an entity in another value.
-//
-// If entities with duplicate keys are present, an arbitrary choice will
-// be made as to which is written.
+service Datastore {
+  // Looks up entities by key.
+  rpc Lookup(LookupRequest) returns (LookupResponse) {
+    option (google.api.http) = { post: "/v1/projects/{project_id}:lookup" body: "*" };
+  }
+
+  // Queries for entities.
+  rpc RunQuery(RunQueryRequest) returns (RunQueryResponse) {
+    option (google.api.http) = { post: "/v1/projects/{project_id}:runQuery" body: "*" };
+  }
+
+  // Begins a new transaction.
+  rpc BeginTransaction(BeginTransactionRequest) returns (BeginTransactionResponse) {
+    option (google.api.http) = { post: "/v1/projects/{project_id}:beginTransaction" body: "*" };
+  }
+
+  // Commits a transaction, optionally creating, deleting or modifying some
+  // entities.
+  rpc Commit(CommitRequest) returns (CommitResponse) {
+    option (google.api.http) = { post: "/v1/projects/{project_id}:commit" body: "*" };
+  }
+
+  // Rolls back a transaction.
+  rpc Rollback(RollbackRequest) returns (RollbackResponse) {
+    option (google.api.http) = { post: "/v1/projects/{project_id}:rollback" body: "*" };
+  }
+
+  // Allocates IDs for the given keys, which is useful for referencing an entity
+  // before it is inserted.
+  rpc AllocateIds(AllocateIdsRequest) returns (AllocateIdsResponse) {
+    option (google.api.http) = { post: "/v1/projects/{project_id}:allocateIds" body: "*" };
+  }
+}
+
+// The request for [Datastore.Lookup][google.datastore.v1.Datastore.Lookup].
+message LookupRequest {
+  // The ID of the project against which to make the request.
+  string project_id = 8;
+
+  // The options for this lookup request.
+  ReadOptions read_options = 1;
+
+  // Keys of entities to look up.
+  repeated Key keys = 3;
+}
+
+// The response for [Datastore.Lookup][google.datastore.v1.Datastore.Lookup].
+message LookupResponse {
+  // Entities found as `ResultType.FULL` entities. The order of results in this
+  // field is undefined and has no relation to the order of the keys in the
+  // input.
+  repeated EntityResult found = 1;
+
+  // Entities not found as `ResultType.KEY_ONLY` entities. The order of results
+  // in this field is undefined and has no relation to the order of the keys
+  // in the input.
+  repeated EntityResult missing = 2;
+
+  // A list of keys that were not looked up due to resource constraints. The
+  // order of results in this field is undefined and has no relation to the
+  // order of the keys in the input.
+  repeated Key deferred = 3;
+}
+
+// The request for [Datastore.RunQuery][google.datastore.v1.Datastore.RunQuery].
+message RunQueryRequest {
+  // The ID of the project against which to make the request.
+  string project_id = 8;
+
+  // Entities are partitioned into subsets, identified by a partition ID.
+  // Queries are scoped to a single partition.
+  // This partition ID is normalized with the standard default context
+  // partition ID.
+  PartitionId partition_id = 2;
+
+  // The options for this query.
+  ReadOptions read_options = 1;
+
+  // The type of query.
+  oneof query_type {
+    // The query to run.
+    Query query = 3;
+
+    // The GQL query to run.
+    GqlQuery gql_query = 7;
+  }
+}
+
+// The response for [Datastore.RunQuery][google.datastore.v1.Datastore.RunQuery].
+message RunQueryResponse {
+  // A batch of query results (always present).
+  QueryResultBatch batch = 1;
+
+  // The parsed form of the `GqlQuery` from the request, if it was set.
+  Query query = 2;
+}
+
+// The request for [Datastore.BeginTransaction][google.datastore.v1.Datastore.BeginTransaction].
+message BeginTransactionRequest {
+  // The ID of the project against which to make the request.
+  string project_id = 8;
+}
+
+// The response for [Datastore.BeginTransaction][google.datastore.v1.Datastore.BeginTransaction].
+message BeginTransactionResponse {
+  // The transaction identifier (always present).
+  bytes transaction = 1;
+}
+
+// The request for [Datastore.Rollback][google.datastore.v1.Datastore.Rollback].
+message RollbackRequest {
+  // The ID of the project against which to make the request.
+  string project_id = 8;
+
+  // The transaction identifier, returned by a call to
+  // [Datastore.BeginTransaction][google.datastore.v1.Datastore.BeginTransaction].
+  bytes transaction = 1;
+}
+
+// The response for [Datastore.Rollback][google.datastore.v1.Datastore.Rollback].
+// (an empty message).
+message RollbackResponse {
+
+}
+
+// The request for [Datastore.Commit][google.datastore.v1.Datastore.Commit].
+message CommitRequest {
+  // The modes available for commits.
+  enum Mode {
+    // Unspecified. This value must not be used.
+    MODE_UNSPECIFIED = 0;
+
+    // Transactional: The mutations are either all applied, or none are applied.
+    // Learn about transactions [here](https://cloud.google.com/datastore/docs/concepts/transactions).
+    TRANSACTIONAL = 1;
+
+    // Non-transactional: The mutations may not apply as all or none.
+    NON_TRANSACTIONAL = 2;
+  }
+
+  // The ID of the project against which to make the request.
+  string project_id = 8;
+
+  // The type of commit to perform. Defaults to `TRANSACTIONAL`.
+  Mode mode = 5;
+
+  // Must be set when mode is `TRANSACTIONAL`.
+  oneof transaction_selector {
+    // The identifier of the transaction associated with the commit. A
+    // transaction identifier is returned by a call to
+    // [Datastore.BeginTransaction][google.datastore.v1.Datastore.BeginTransaction].
+    bytes transaction = 1;
+  }
+
+  // The mutations to perform.
+  //
+  // When mode is `TRANSACTIONAL`, mutations affecting a single entity are
+  // applied in order. The following sequences of mutations affecting a single
+  // entity are not permitted in a single `Commit` request:
+  //
+  // - `insert` followed by `insert`
+  // - `update` followed by `insert`
+  // - `upsert` followed by `insert`
+  // - `delete` followed by `update`
+  //
+  // When mode is `NON_TRANSACTIONAL`, no two mutations may affect a single
+  // entity.
+  repeated Mutation mutations = 6;
+}
+
+// The response for [Datastore.Commit][google.datastore.v1.Datastore.Commit].
+message CommitResponse {
+  // The result of performing the mutations.
+  // The i-th mutation result corresponds to the i-th mutation in the request.
+  repeated MutationResult mutation_results = 3;
+
+  // The number of index entries updated during the commit, or zero if none were
+  // updated.
+  int32 index_updates = 4;
+}
+
+// The request for [Datastore.AllocateIds][google.datastore.v1.Datastore.AllocateIds].
+message AllocateIdsRequest {
+  // The ID of the project against which to make the request.
+  string project_id = 8;
+
+  // A list of keys with incomplete key paths for which to allocate IDs.
+  // No key may be reserved/read-only.
+  repeated Key keys = 1;
+}
+
+// The response for [Datastore.AllocateIds][google.datastore.v1.Datastore.AllocateIds].
+message AllocateIdsResponse {
+  // The keys specified in the request (in the same order), each with
+  // its key path completed with a newly allocated ID.
+  repeated Key keys = 1;
+}
+
+// A mutation to apply to an entity.
 message Mutation {
-  // Entities to upsert.
-  // Each upserted entity's key must have a complete path and
-  // must not be reserved/read-only.
-  repeated Entity upsert = 1;
-  // Entities to update.
-  // Each updated entity's key must have a complete path and
-  // must not be reserved/read-only.
-  repeated Entity update = 2;
-  // Entities to insert.
-  // Each inserted entity's key must have a complete path and
-  // must not be reserved/read-only.
-  repeated Entity insert = 3;
-  // Insert entities with a newly allocated ID.
-  // Each inserted entity's key must omit the final identifier in its path and
-  // must not be reserved/read-only.
-  repeated Entity insert_auto_id = 4;
-  // Keys of entities to delete.
-  // Each key must have a complete key path and must not be reserved/read-only.
-  repeated Key delete = 5;
-  // Ignore a user specified read-only period. Optional.
-  optional bool force = 6;
+  // The mutation operation.
+  //
+  // For `insert`, `update`, and `upsert`:
+  // - The entity's key must not be reserved/read-only.
+  // - No property in the entity may have a reserved name,
+  //   not even a property in an entity in a value.
+  // - No value in the entity may have meaning 18,
+  //   not even a value in an entity in another value.
+  oneof operation {
+    // The entity to insert. The entity must not already exist.
+    // The entity key's final path element may be incomplete.
+    Entity insert = 4;
+
+    // The entity to update. The entity must already exist.
+    // Must have a complete key path.
+    Entity update = 5;
+
+    // The entity to upsert. The entity may or may not already exist.
+    // The entity key's final path element may be incomplete.
+    Entity upsert = 6;
+
+    // The key of the entity to delete. The entity may or may not already exist.
+    // Must have a complete key path and must not be reserved/read-only.
+    Key delete = 7;
+  }
+
+  // When set, the server will detect whether or not this mutation conflicts
+  // with the current version of the entity on the server. Conflicting mutations
+  // are not applied, and are marked as such in MutationResult.
+  oneof conflict_detection_strategy {
+    // The version of the entity that this mutation is being applied to. If this
+    // does not match the current version on the server, the mutation conflicts.
+    int64 base_version = 8;
+  }
 }
 
 // The result of applying a mutation.
 message MutationResult {
-  // Number of index writes.
-  required int32 index_updates = 1;
-  // Keys for <code>insertAutoId</code> entities. One per entity from the
-  // request, in the same order.
-  repeated Key insert_auto_id_key = 2;
+  // The automatically allocated key.
+  // Set only when the mutation allocated a key.
+  Key key = 3;
+
+  // The version of the entity on the server after processing the mutation. If
+  // the mutation doesn't change anything on the server, then the version will
+  // be the version of the current entity or, if no entity is present, a version
+  // that is strictly greater than the version of any previous entity and less
+  // than the version of any possible future entity.
+  int64 version = 4;
+
+  // Whether a conflict was detected for this mutation. Always false when a
+  // conflict detection strategy field is not set in the mutation.
+  bool conflict_detected = 5;
 }
 
-// Options shared by read requests.
+// The options shared by read requests.
 message ReadOptions {
+  // The possible values for read consistencies.
   enum ReadConsistency {
-    DEFAULT = 0;
+    // Unspecified. This value must not be used.
+    READ_CONSISTENCY_UNSPECIFIED = 0;
+
+    // Strong consistency.
     STRONG = 1;
+
+    // Eventual consistency.
     EVENTUAL = 2;
   }
 
-  // The read consistency to use.
-  // Cannot be set when transaction is set.
-  // Lookup and ancestor queries default to STRONG, global queries default to
-  // EVENTUAL and cannot be set to STRONG.
-  optional ReadConsistency read_consistency = 1 [default=DEFAULT];
+  // If not specified, lookups and ancestor queries default to
+  // `read_consistency`=`STRONG`, global queries default to
+  // `read_consistency`=`EVENTUAL`.
+  oneof consistency_type {
+    // The non-transactional read consistency to use.
+    // Cannot be set to `STRONG` for global queries.
+    ReadConsistency read_consistency = 1;
 
-  // The transaction to use. Optional.
-  optional bytes /* serialized Transaction */ transaction = 2;
-}
-
-// The request for Lookup.
-message LookupRequest {
-
-  // Options for this lookup request. Optional.
-  optional ReadOptions read_options = 1;
-  // Keys of entities to look up from the datastore.
-  repeated Key key = 3;
-}
-
-// The response for Lookup.
-message LookupResponse {
-
-  // The order of results in these fields is undefined and has no relation to
-  // the order of the keys in the input.
-
-  // Entities found as ResultType.FULL entities.
-  repeated EntityResult found = 1;
-
-  // Entities not found as ResultType.KEY_ONLY entities.
-  repeated EntityResult missing = 2;
-
-  // A list of keys that were not looked up due to resource constraints.
-  repeated Key deferred = 3;
-}
-
-
-// The request for RunQuery.
-message RunQueryRequest {
-
-  // The options for this query.
-  optional ReadOptions read_options = 1;
-
-  // Entities are partitioned into subsets, identified by a dataset (usually
-  // implicitly specified by the project) and namespace ID. Queries are scoped
-  // to a single partition.
-  // This partition ID is normalized with the standard default context
-  // partition ID, but all other partition IDs in RunQueryRequest are
-  // normalized with this partition ID as the context partition ID.
-  optional PartitionId partition_id = 2;
-
-  // The query to run.
-  // Either this field or field gql_query must be set, but not both.
-  optional Query query = 3;
-  // The GQL query to run.
-  // Either this field or field query must be set, but not both.
-  optional GqlQuery gql_query = 7;
-}
-
-// The response for RunQuery.
-message RunQueryResponse {
-
-  // A batch of query results (always present).
-  optional QueryResultBatch batch = 1;
-
-}
-
-// The request for BeginTransaction.
-message BeginTransactionRequest {
-
-  enum IsolationLevel {
-    SNAPSHOT = 0;  // Read from a consistent snapshot. Concurrent transactions
-                   // conflict if their mutations conflict. For example:
-                   // Read(A),Write(B) may not conflict with Read(B),Write(A),
-                   // but Read(B),Write(B) does conflict with Read(B),Write(B).
-    SERIALIZABLE = 1; // Read from a consistent snapshot. Concurrent
-                      // transactions conflict if they cannot be serialized.
-                      // For example Read(A),Write(B) does conflict with
-                      // Read(B),Write(A) but Read(A) may not conflict with
-                      // Write(A).
+    // The identifier of the transaction in which to read. A
+    // transaction identifier is returned by a call to
+    // [Datastore.BeginTransaction][google.datastore.v1.Datastore.BeginTransaction].
+    bytes transaction = 2;
   }
-
-  // The transaction isolation level.
-  optional IsolationLevel isolation_level = 1 [default=SNAPSHOT];
-}
-
-// The response for BeginTransaction.
-message BeginTransactionResponse {
-
-  // The transaction identifier (always present).
-  optional bytes /* serialized Transaction */ transaction = 1;
-}
-
-// The request for Rollback.
-message RollbackRequest {
-
-  // The transaction identifier, returned by a call to
-  // <code>beginTransaction</code>.
-  required bytes /* serialized Transaction */ transaction = 1;
-}
-
-// The response for Rollback.
-message RollbackResponse {
-// Empty
-}
-
-// The request for Commit.
-message CommitRequest {
-
-  enum Mode {
-    TRANSACTIONAL = 1;
-    NON_TRANSACTIONAL = 2;
-  }
-
-  // The transaction identifier, returned by a call to
-  // <code>beginTransaction</code>. Must be set when mode is TRANSACTIONAL.
-  optional bytes /* serialized Transaction */ transaction = 1;
-  // The mutation to perform. Optional.
-  optional Mutation mutation = 2;
-  // The type of commit to perform. Either TRANSACTIONAL or NON_TRANSACTIONAL.
-  optional Mode mode = 5 [default=TRANSACTIONAL];
-}
-
-// The response for Commit.
-message CommitResponse {
-
-  // The result of performing the mutation (if any).
-  optional MutationResult mutation_result = 1;
-}
-
-// The request for AllocateIds.
-message AllocateIdsRequest {
-
-  // A list of keys with incomplete key paths to allocate IDs for.
-  // No key may be reserved/read-only.
-  repeated Key key = 1;
-}
-
-// The response for AllocateIds.
-message AllocateIdsResponse {
-
-  // The keys specified in the request (in the same order), each with
-  // its key path completed with a newly allocated ID.
-  repeated Key key = 1;
-}
-
-// Each rpc normalizes the partition IDs of the keys in its input entities,
-// and always returns entities with keys with normalized partition IDs.
-// (Note that applies to all entities, including entities in values.)
-service DatastoreService {
-  // Look up some entities by key.
-  rpc Lookup(LookupRequest) returns (LookupResponse) {
-    // POST /DatastoreService/Lookup ?
-  };
-  // Query for entities.
-  rpc RunQuery(RunQueryRequest) returns (RunQueryResponse) {
-    // POST /DatastoreService/RunQ ?
-  };
-  // Begin a new transaction.
-  rpc BeginTransaction(BeginTransactionRequest) returns (BeginTransactionResponse) {
-  };
-  // Commit a transaction, optionally creating, deleting or modifying some
-  // entities.
-  rpc Commit(CommitRequest) returns (CommitResponse) {
-  };
-  // Roll back a transaction.
-  rpc Rollback(RollbackRequest) returns (RollbackResponse) {
-  };
-  // Allocate IDs for incomplete keys (useful for referencing an entity before
-  // it is inserted).
-  rpc AllocateIds(AllocateIdsRequest) returns (AllocateIdsResponse) {
-  };
 }
