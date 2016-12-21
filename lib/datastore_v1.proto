@@ -11,29 +11,29 @@ message Struct {
   map<string, Value> fields = 1;
 }
 
-// `Value` represents a dynamically typed value which can be either
-// null, a number, a string, a boolean, a recursive struct value, or a
-// list of values. A producer of value is expected to set one of that
-// variants, absence of any variant indicates an error.
-//
-// The JSON representation for `Value` is JSON value.
-message Value {
-  // The kind of value.
-  oneof kind {
-    // Represents a null value.
-    NullValue null_value = 1;
-    // Represents a double value.
-    double number_value = 2;
-    // Represents a string value.
-    string string_value = 3;
-    // Represents a boolean value.
-    bool bool_value = 4;
-    // Represents a structured value.
-    Struct struct_value = 5;
-    // Represents a repeated `Value`.
-    ListValue list_value = 6;
-  }
-}
+// // `Value` represents a dynamically typed value which can be either
+// // null, a number, a string, a boolean, a recursive struct value, or a
+// // list of values. A producer of value is expected to set one of that
+// // variants, absence of any variant indicates an error.
+// //
+// // The JSON representation for `Value` is JSON value.
+// message Value {
+//   // The kind of value.
+//   oneof kind {
+//     // Represents a null value.
+//     NullValue null_value = 1;
+//     // Represents a double value.
+//     double number_value = 2;
+//     // Represents a string value.
+//     string string_value = 3;
+//     // Represents a boolean value.
+//     bool bool_value = 4;
+//     // Represents a structured value.
+//     Struct struct_value = 5;
+//     // Represents a repeated `Value`.
+//     ListValue list_value = 6;
+//   }
+// }
 
 // `NullValue` is a singleton enumeration to represent the null value for the
 // `Value` type union.
@@ -262,7 +262,7 @@ message Value {
   // Must have a value set.
   oneof value_type {
     // A null value.
-    google.protobuf.NullValue null_value = 11;
+    NullValue null_value = 11;
 
     // A boolean value.
     bool boolean_value = 1;
@@ -276,7 +276,7 @@ message Value {
     // A timestamp value.
     // When stored in the Datastore, precise only to microseconds;
     // any additional precision is rounded down.
-    google.protobuf.Timestamp timestamp_value = 10;
+    Timestamp timestamp_value = 10;
 
     // A key value.
     Key key_value = 5;
@@ -293,7 +293,7 @@ message Value {
     bytes blob_value = 18;
 
     // A geo point value representing a point on the surface of Earth.
-    google.type.LatLng geo_point_value = 8;
+    LatLng geo_point_value = 8;
 
     // An entity value.
     //
@@ -418,7 +418,7 @@ message Query {
   // constraints. Optional.
   // Unspecified is interpreted as no limit.
   // Must be >= 0 if specified.
-  google.protobuf.Int32Value limit = 12;
+  int32 limit = 12;
 }
 
 // A representation of a kind.
@@ -627,39 +627,39 @@ message QueryResultBatch {
 // input keys sets the project ID (if not already set) to the project ID from
 // the request.
 //
-service Datastore {
-  // Looks up entities by key.
-  rpc Lookup(LookupRequest) returns (LookupResponse) {
-    option (google.api.http) = { post: "/v1/projects/{project_id}:lookup" body: "*" };
-  }
+// service Datastore {
+//   // Looks up entities by key.
+//   rpc Lookup(LookupRequest) returns (LookupResponse) {
+//     option (google.api.http) = { post: "/v1/projects/{project_id}:lookup" body: "*" };
+//   }
 
-  // Queries for entities.
-  rpc RunQuery(RunQueryRequest) returns (RunQueryResponse) {
-    option (google.api.http) = { post: "/v1/projects/{project_id}:runQuery" body: "*" };
-  }
+//   // Queries for entities.
+//   rpc RunQuery(RunQueryRequest) returns (RunQueryResponse) {
+//     option (google.api.http) = { post: "/v1/projects/{project_id}:runQuery" body: "*" };
+//   }
 
-  // Begins a new transaction.
-  rpc BeginTransaction(BeginTransactionRequest) returns (BeginTransactionResponse) {
-    option (google.api.http) = { post: "/v1/projects/{project_id}:beginTransaction" body: "*" };
-  }
+//   // Begins a new transaction.
+//   rpc BeginTransaction(BeginTransactionRequest) returns (BeginTransactionResponse) {
+//     option (google.api.http) = { post: "/v1/projects/{project_id}:beginTransaction" body: "*" };
+//   }
 
-  // Commits a transaction, optionally creating, deleting or modifying some
-  // entities.
-  rpc Commit(CommitRequest) returns (CommitResponse) {
-    option (google.api.http) = { post: "/v1/projects/{project_id}:commit" body: "*" };
-  }
+//   // Commits a transaction, optionally creating, deleting or modifying some
+//   // entities.
+//   rpc Commit(CommitRequest) returns (CommitResponse) {
+//     option (google.api.http) = { post: "/v1/projects/{project_id}:commit" body: "*" };
+//   }
 
-  // Rolls back a transaction.
-  rpc Rollback(RollbackRequest) returns (RollbackResponse) {
-    option (google.api.http) = { post: "/v1/projects/{project_id}:rollback" body: "*" };
-  }
+//   // Rolls back a transaction.
+//   rpc Rollback(RollbackRequest) returns (RollbackResponse) {
+//     option (google.api.http) = { post: "/v1/projects/{project_id}:rollback" body: "*" };
+//   }
 
-  // Allocates IDs for the given keys, which is useful for referencing an entity
-  // before it is inserted.
-  rpc AllocateIds(AllocateIdsRequest) returns (AllocateIdsResponse) {
-    option (google.api.http) = { post: "/v1/projects/{project_id}:allocateIds" body: "*" };
-  }
-}
+//   // Allocates IDs for the given keys, which is useful for referencing an entity
+//   // before it is inserted.
+//   rpc AllocateIds(AllocateIdsRequest) returns (AllocateIdsResponse) {
+//     option (google.api.http) = { post: "/v1/projects/{project_id}:allocateIds" body: "*" };
+//   }
+// }
 
 // The request for [Datastore.Lookup][google.datastore.v1.Datastore.Lookup].
 message LookupRequest {
@@ -908,4 +908,47 @@ message ReadOptions {
     // [Datastore.BeginTransaction][google.datastore.v1.Datastore.BeginTransaction].
     bytes transaction = 2;
   }
+}
+
+message Any {
+  // A URL/resource name whose content describes the type of the
+  // serialized protocol buffer message.
+  //
+  // For URLs which use the scheme `http`, `https`, or no scheme, the
+  // following restrictions and interpretations apply:
+  //
+  // * If no scheme is provided, `https` is assumed.
+  // * The last segment of the URL's path must represent the fully
+  //   qualified name of the type (as in `path/google.protobuf.Duration`).
+  //   The name should be in a canonical form (e.g., leading "." is
+  //   not accepted).
+  // * An HTTP GET on the URL must yield a [google.protobuf.Type][]
+  //   value in binary format, or produce an error.
+  // * Applications are allowed to cache lookup results based on the
+  //   URL, or have them precompiled into a binary to avoid any
+  //   lookup. Therefore, binary compatibility needs to be preserved
+  //   on changes to types. (Use versioned type names to manage
+  //   breaking changes.)
+  //
+  // Schemes other than `http`, `https` (or the empty scheme) might be
+  // used with implementation specific semantics.
+  //
+  string type_url = 1;
+
+  // Must be a valid serialized protocol buffer of the above specified type.
+  bytes value = 2;
+}
+
+message Status {
+  // The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+  int32 code = 1;
+
+  // A developer-facing error message, which should be in English. Any
+  // user-facing error message should be localized and sent in the
+  // [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+  string message = 2;
+
+  // A list of messages that carry the error details.  There will be a
+  // common set of message types for APIs to use.
+  repeated Any details = 3;
 }
