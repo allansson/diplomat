@@ -20,7 +20,7 @@ defmodule Diplomat.Mixfile do
       {:goth, "~> 0.3"},
       {:exprotobuf, "~> 1.2"},
       {:httpoison, "~> 0.11"},
-      {:poison, "~> 2.1"},
+      {:poison, "~> 2.1 or ~> 3.0"},
       {:bypass, "~> 0.1", only: :test},
       {:mix_test_watch, "~> 0.2.5", only: :dev},
       {:ex_doc, "~> 0.14", only: :dev},
